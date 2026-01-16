@@ -1,0 +1,7 @@
+hosts = ["*"]
+
+terminates_matching = false
+
+[[param_matchers]]
+name = "utm_*"
+operation = "Drop"

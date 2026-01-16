@@ -1,0 +1,9 @@
+hosts = ["*.reddit.com"]
+
+[[param_matchers]]
+name = "share_id"
+operation = "Drop"
+
+[[path_matchers]]
+name = "s"
+operation = "RequestRedirect"
