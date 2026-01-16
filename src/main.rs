@@ -1,13 +1,25 @@
 use arboard::Clipboard;
-use clap::{Parser, Subcommand};
-use reqwest::{Client, header::LOCATION};
-use rootcause::{Report, prelude::ResultExt};
-use std::{borrow::Cow, time::Duration};
-use tracing::{Level, debug, debug_span, error, trace, warn};
+use clap::Parser;
+use clap::Subcommand;
+use reqwest::Client;
+use reqwest::header::LOCATION;
+use rootcause::Report;
+use rootcause::prelude::ResultExt;
+use std::borrow::Cow;
+use std::time::Duration;
+use tracing::Level;
+use tracing::debug;
+use tracing::debug_span;
+use tracing::error;
+use tracing::trace;
+use tracing::warn;
 use tracing_subscriber::fmt;
 use url::Url;
 
-use crate::matchers::{Matcher, ReplacementResult, included_matchers, load_matchers};
+use crate::matchers::Matcher;
+use crate::matchers::ReplacementResult;
+use crate::matchers::included_matchers;
+use crate::matchers::load_matchers;
 
 mod config;
 mod matchers;
@@ -61,8 +73,7 @@ async fn main() -> Result<(), Report> {
         fmt().pretty().with_max_level(Level::DEBUG).finish()
     };
 
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("setting default tracing subscriber failed");
+    tracing::subscriber::set_global_default(subscriber).expect("setting default tracing subscriber failed");
 
     let matchers = if cfg!(debug_assertions) {
         // Load from the current directory
@@ -167,18 +178,13 @@ async fn clean_clipboard_text(
                     debug!("Matcher requested a redirect");
 
                     if redirect_depth > 0 {
-                        warn!(
-                            "A prior matcher already requested a redirect. Nested redirects are to be ignored."
-                        );
+                        warn!("A prior matcher already requested a redirect. Nested redirects are to be ignored.");
                         // We aren't going to request any deeper
                         break;
                     }
 
-                    let response = http_client
-                        .head(parsed_url.clone())
-                        .send()
-                        .await
-                        .context("failed to get redirect target")?;
+                    let response =
+                        http_client.head(parsed_url.clone()).send().await.context("failed to get redirect target")?;
 
                     debug!("got response: {:?}", response);
 
@@ -217,10 +223,13 @@ async fn clean_clipboard_text(
 
 #[cfg(feature = "service")]
 fn handle_command(command: Commands) -> Result<(), Report> {
-    use service_manager::{
-        RestartPolicy, ServiceInstallCtx, ServiceLabel, ServiceLevel, ServiceManager,
-        ServiceStartCtx, ServiceUninstallCtx,
-    };
+    use service_manager::RestartPolicy;
+    use service_manager::ServiceInstallCtx;
+    use service_manager::ServiceLabel;
+    use service_manager::ServiceLevel;
+    use service_manager::ServiceManager;
+    use service_manager::ServiceStartCtx;
+    use service_manager::ServiceUninstallCtx;
 
     const SERVICE_NAME: &str = "net.landaire.stoptrackingme";
     const TARGET_SERVICE_LEVEL: ServiceLevel = ServiceLevel::User;
@@ -243,39 +252,27 @@ fn handle_command(command: Commands) -> Result<(), Report> {
                     working_directory: None,
                     environment: None,
                     autostart: true,
-                    restart_policy: RestartPolicy::OnFailure {
-                        delay_secs: Some(10),
-                    },
+                    restart_policy: RestartPolicy::OnFailure { delay_secs: Some(10) },
                 })
                 .context("failed to install service")?;
 
-            println!(
-                "Successfully installed service with label {SERVICE_NAME:?}. You can now start it with:"
-            );
+            println!("Successfully installed service with label {SERVICE_NAME:?}. You can now start it with:");
             println!("stoptrackingme start-service")
         }
         Commands::UninstallService => {
-            manager
-                .uninstall(ServiceUninstallCtx { label })
-                .context("failed to uninstall service")?;
+            manager.uninstall(ServiceUninstallCtx { label }).context("failed to uninstall service")?;
 
             println!("Successfully uninstalled service");
         }
         Commands::StartService => {
-            manager
-                .start(ServiceStartCtx { label })
-                .context("failed to start service")
-                .attach(SERVICE_NAME)?;
+            manager.start(ServiceStartCtx { label }).context("failed to start service").attach(SERVICE_NAME)?;
 
             println!("Successfully started service");
         }
         Commands::StopService => {
             use service_manager::ServiceStopCtx;
 
-            manager
-                .stop(ServiceStopCtx { label })
-                .context("failed to stop service")
-                .attach(SERVICE_NAME)?;
+            manager.stop(ServiceStopCtx { label }).context("failed to stop service").attach(SERVICE_NAME)?;
 
             println!("Successfully stopped service");
         }

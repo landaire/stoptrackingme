@@ -1,5 +1,7 @@
 use serde::Deserialize;
-use std::{env, fs, path::Path};
+use std::env;
+use std::fs;
+use std::path::Path;
 use walkdir::WalkDir;
 
 #[derive(Debug, Deserialize)]
@@ -61,9 +63,7 @@ fn main() {
 
     let matcher_count = matchers.len();
 
-    let mut code = format!(
-        "static INCLUDED_MATCHERS: LazyLock<[Matcher; {matcher_count}]> = LazyLock::new(||[\n"
-    );
+    let mut code = format!("static INCLUDED_MATCHERS: LazyLock<[Matcher; {matcher_count}]> = LazyLock::new(||[\n");
     for m in &matchers {
         code.push_str(&format!(
             "Matcher {{ name: {:?}.into(), hosts: vec![{}], terminates_matching: {}, param_matchers: vec![{}], path_matchers: vec![{}] }},\n",
@@ -82,9 +82,7 @@ fn main() {
 fn format_string_collection(items: &[String]) -> String {
     const INTO_TEXT: &str = ".into()";
     // Add 3 to each item -- 2 for the quote pairs and 1 for the comma
-    let total_capacity = items
-        .iter()
-        .fold(0, |accum, item| accum + 3 + item.len() + INTO_TEXT.len());
+    let total_capacity = items.iter().fold(0, |accum, item| accum + 3 + item.len() + INTO_TEXT.len());
     let mut output = String::with_capacity(total_capacity);
 
     for item in items {

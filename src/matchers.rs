@@ -1,8 +1,13 @@
-use std::{borrow::Cow, path::Path};
+use std::borrow::Cow;
+use std::path::Path;
 
-use rootcause::{Report, prelude::ResultExt};
-use serde::{Deserialize, Serialize};
-use tracing::{debug_span, error, warn};
+use rootcause::Report;
+use rootcause::prelude::ResultExt;
+use serde::Deserialize;
+use serde::Serialize;
+use tracing::debug_span;
+use tracing::error;
+use tracing::warn;
 use url::Url;
 use walkdir::WalkDir;
 
@@ -52,9 +57,7 @@ impl Matcher {
         if let Some(segments) = url.path_segments() {
             for segment in segments {
                 for path_matcher in &self.path_matchers {
-                    if segment == path_matcher.name
-                        && path_matcher.operation == ReplacementOperation::RequestRedirect
-                    {
+                    if segment == path_matcher.name && path_matcher.operation == ReplacementOperation::RequestRedirect {
                         return ReplacementResult::RequestRedirect;
                     }
                 }
@@ -62,10 +65,8 @@ impl Matcher {
         }
 
         // We use a Vec instead of a HashMap to keep ordering consistent.
-        let mut query_pairs: Vec<(String, String)> = url
-            .query_pairs()
-            .map(|(k, v)| (k.into_owned(), v.into_owned()))
-            .collect();
+        let mut query_pairs: Vec<(String, String)> =
+            url.query_pairs().map(|(k, v)| (k.into_owned(), v.into_owned())).collect();
 
         let mut matched_names = Vec::new();
         for param_matcher in &self.param_matchers {
@@ -91,10 +92,7 @@ impl Matcher {
             };
 
             for matched_name in matched_names.drain(..) {
-                let Some(existing_index) = query_pairs
-                    .iter()
-                    .position(|(key, _)| key == matched_name.as_ref())
-                else {
+                let Some(existing_index) = query_pairs.iter().position(|(key, _)| key == matched_name.as_ref()) else {
                     warn!("BUG: failed to get replacement operation index");
                     continue;
                 };
@@ -120,11 +118,7 @@ impl Matcher {
         }
         new_query_pairs.finish();
 
-        if self.terminates_matching {
-            ReplacementResult::Stop
-        } else {
-            ReplacementResult::Continue
-        }
+        if self.terminates_matching { ReplacementResult::Stop } else { ReplacementResult::Continue }
     }
 }
 
