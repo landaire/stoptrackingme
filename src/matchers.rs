@@ -49,6 +49,7 @@ impl Matcher {
         // We use a Vec instead of a HashMap to keep ordering consistent.
         let mut query_pairs: Vec<(String, String)> =
             url.query_pairs().map(|(k, v)| (k.into_owned(), v.into_owned())).collect();
+        let had_query_string = url.query().is_some();
 
         // We use a Vec here because wildcard matches may match multiple query strings
         let mut matched_names = Vec::new();
@@ -98,7 +99,7 @@ impl Matcher {
             }
         }
 
-        if query_pairs.is_empty() {
+        if query_pairs.is_empty() && had_query_string {
             url.set_query(None);
         } else {
             let mut new_query_pairs = url.query_pairs_mut();
@@ -109,13 +110,17 @@ impl Matcher {
             new_query_pairs.finish();
         }
 
-        if self.terminates_matching { ReplacementResult::Stop } else { ReplacementResult::Continue }
+        if self.terminates_matching {
+            ReplacementResult::Stop
+        } else {
+            ReplacementResult::Continue { modified: query_pairs.is_empty() && had_query_string }
+        }
     }
 }
 
 pub enum ReplacementResult {
     Stop,
-    Continue,
+    Continue { modified: bool },
     RequestRedirect,
 }
 

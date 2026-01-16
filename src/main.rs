@@ -161,8 +161,12 @@ fn clean_clipboard_text(text: &str, http_client: &mut Client, matchers: &[Matche
             debug!("{} matcher supports domain", &matcher.name);
 
             match matcher.run_replacements(&mut parsed_url) {
-                ReplacementResult::Continue => {
+                ReplacementResult::Continue { modified } => {
                     debug!("Matcher requested a continue");
+
+                    if modified {
+                        final_result = Ok(Some(parsed_url.to_string()));
+                    }
                     continue;
                 }
                 ReplacementResult::Stop => {
@@ -193,6 +197,7 @@ fn clean_clipboard_text(text: &str, http_client: &mut Client, matchers: &[Matche
                                     .context("failed to convert Location header to text")?
                                     .to_owned(),
                             );
+                            final_result = Ok(Some(parsed_url.to_string()));
 
                             trace!("Got redirection location: {text}");
 
