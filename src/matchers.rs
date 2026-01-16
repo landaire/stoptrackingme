@@ -50,10 +50,13 @@ impl Matcher {
         let mut query_pairs: Vec<(String, String)> =
             url.query_pairs().map(|(k, v)| (k.into_owned(), v.into_owned())).collect();
 
+        // We use a Vec here because wildcard matches may match multiple query strings
         let mut matched_names = Vec::new();
         for param_matcher in &self.param_matchers {
             let matcher_name = &param_matcher.name;
 
+            // If it has a wildcard SUFFIX, we check if the name starts with the needle
+            // and vice versa for wildcard PREFIX.
             if let Some(needle) = matcher_name.strip_suffix("*") {
                 for (name, _) in &query_pairs {
                     if name.starts_with(needle) {
@@ -67,9 +70,11 @@ impl Matcher {
                     }
                 }
             } else if query_pairs.iter().any(|(name, _)| name == matcher_name) {
+                // Simple case -- literal match
                 matched_names.push(Cow::Borrowed(matcher_name))
             } else {
-                // No matches
+                // It was not a wildcard and none of the query pairs had a literal
+                // match
                 continue;
             };
 
