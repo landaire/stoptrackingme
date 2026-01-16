@@ -118,6 +118,18 @@ impl Matcher {
             ReplacementResult::Continue { modified: query_pairs.is_empty() && had_query_string }
         }
     }
+
+    pub fn merge(&mut self, other: &mut Self) {
+        self.hosts.append(&mut other.hosts);
+        self.param_matchers.append(&mut other.param_matchers);
+        self.path_matchers.append(&mut other.path_matchers);
+
+        // Since `other` will be user-defined config, override
+        // this field if non-default
+        if !other.terminates_matching {
+            self.terminates_matching = false;
+        }
+    }
 }
 
 pub enum ReplacementResult {

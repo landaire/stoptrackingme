@@ -6,6 +6,7 @@ use reqwest::header::LOCATION;
 use rootcause::Report;
 use rootcause::prelude::ResultExt;
 use std::borrow::Cow;
+use std::path::PathBuf;
 use std::time::Duration;
 use tracing::Level;
 use tracing::debug;
@@ -38,6 +39,9 @@ struct Args {
 #[cfg(feature = "service")]
 #[derive(Debug, Default, Eq, PartialEq, Subcommand)]
 enum Commands {
+    /// Runs the application (default)
+    #[default]
+    Run,
     /// Installs a service on the machine that will cause the application to be
     /// run automatically on login/system start
     InstallService,
@@ -47,9 +51,8 @@ enum Commands {
     StartService,
     /// Stops the system service
     StopService,
-    /// Runs the application (default)
-    #[default]
-    Run,
+    /// Prints the expected config path
+    ConfigPath,
 }
 
 #[cfg(not(feature = "service"))]
@@ -97,11 +100,37 @@ fn main() -> Result<(), Report> {
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default tracing subscriber failed");
 
-    let matchers = if cfg!(debug_assertions) {
+    let user_matchers = config_path().and_then(|config_dir| {
+        let user_dir = config_dir.join("matchers");
+        if user_dir.exists() { Some(load_matchers(user_dir)) } else { None }
+    });
+
+    // TODO: I don't like making a heap allocation for static data, but it
+    // makes this code easier to wrangle right now. re-evaluate if the rules grow to be too large
+    let mut matchers = if cfg!(debug_assertions) {
         // Load from the current directory
-        load_matchers("matchers")?.leak()
+        load_matchers("matchers")?
     } else {
-        included_matchers::get()
+        included_matchers::get().to_vec()
+    };
+
+    match user_matchers {
+        Some(Ok(user_matchers)) => {
+            for mut matcher in user_matchers {
+                // Merge the matchers if one already exists
+                if let Some(existing) = matchers.iter_mut().find(|default_matcher| default_matcher.name == matcher.name)
+                {
+                    existing.merge(&mut matcher);
+                } else {
+                    // None found, insert a new one
+                    matchers.push(matcher)
+                }
+            }
+        }
+        Some(Err(e)) => {
+            warn!("Failed to load user matchers: {e:?}");
+        }
+        None => {}
     };
 
     let mut http_client = Client::builder()
@@ -120,7 +149,7 @@ fn main() -> Result<(), Report> {
         if current != last_content {
             trace!("New clipboard text detected. Current: {current:?}, last: {last_content:?}");
             if let Some(ref mut new_clipboard_text) = current {
-                match clean_clipboard_text(new_clipboard_text, &mut http_client, matchers) {
+                match clean_clipboard_text(new_clipboard_text, &mut http_client, &matchers) {
                     Ok(None) => {
                         // Not a URL, so don't update anything
                         debug!("Clipboard text not cleaned");
@@ -304,6 +333,13 @@ fn handle_command(command: Commands) -> Result<(), Report> {
         Commands::Run => {
             unreachable!("Run command should be the default command and handled in main()")
         }
+        Commands::ConfigPath => {
+            if let Some(path) = config_path() {
+                println!("Config path: {:?}", path)
+            } else {
+                println!("Could not resolve config path?")
+            }
+        }
     }
 
     Ok(())
@@ -316,7 +352,18 @@ fn handle_command(command: Commands) -> Result<(), Report> {
         Commands::Run => {
             unreachable!("Run command should be the default command and handled in main()")
         }
+        Commands::ConfigPath => {
+            if let Some(path) = config_path() {
+                println!("Config path: {:?}", path)
+            } else {
+                println!("Could not resolve config path?")
+            }
+        }
     }
 
     Ok(())
+}
+
+fn config_path() -> Option<PathBuf> {
+    dirs::config_local_dir().map(|path| path.join("stoptrackingme"))
 }

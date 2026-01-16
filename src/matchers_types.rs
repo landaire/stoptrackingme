@@ -6,7 +6,7 @@ const fn default_bool<const VALUE: bool>() -> bool {
 }
 
 /// Specifies a replacement rule
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Matcher {
     #[serde(default)]
     pub name: String,
@@ -19,21 +19,21 @@ pub struct Matcher {
     pub path_matchers: Vec<PathComponent>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Param {
     pub name: String,
     #[serde(default)]
     pub operation: ReplacementOperation,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PathComponent {
     pub name: String,
     #[serde(default)]
     pub operation: ReplacementOperation,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum ReplacementOperation {
     #[default]
