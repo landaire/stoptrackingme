@@ -30,8 +30,10 @@ enum Commands {
     InstallService,
     /// Uninstalls the system service
     UninstallService,
-    /// Starts the system service
+    /// Startsthe system service
     StartService,
+    /// Stops the system service
+    StopService,
     /// Runs the application (default)
     #[default]
     Run,
@@ -216,13 +218,18 @@ async fn clean_clipboard_text(
 #[cfg(feature = "service")]
 fn handle_command(command: Commands) -> Result<(), Report> {
     use service_manager::{
-        RestartPolicy, ServiceInstallCtx, ServiceLabel, ServiceManager, ServiceStartCtx,
-        ServiceUninstallCtx,
+        RestartPolicy, ServiceInstallCtx, ServiceLabel, ServiceLevel, ServiceManager,
+        ServiceStartCtx, ServiceUninstallCtx,
     };
 
     const SERVICE_NAME: &str = "net.landaire.stoptrackingme";
+    const TARGET_SERVICE_LEVEL: ServiceLevel = ServiceLevel::User;
     let label: ServiceLabel = SERVICE_NAME.parse().expect("invalid ServiceLabel");
-    let manager = <dyn ServiceManager>::native().expect("Failed to detect management platform");
+    let mut manager = <dyn ServiceManager>::native().expect("Failed to detect management platform");
+    manager
+        .set_level(TARGET_SERVICE_LEVEL)
+        .context("failed to set ServiceManager's level")
+        .attach_with(|| format!("level: {:?}", TARGET_SERVICE_LEVEL))?;
 
     match command {
         Commands::InstallService => {
@@ -245,7 +252,7 @@ fn handle_command(command: Commands) -> Result<(), Report> {
             println!(
                 "Successfully installed service with label {SERVICE_NAME:?}. You can now start it with:"
             );
-            println!("stoptrackingme launch-service")
+            println!("stoptrackingme start-service")
         }
         Commands::UninstallService => {
             manager
@@ -260,7 +267,17 @@ fn handle_command(command: Commands) -> Result<(), Report> {
                 .context("failed to start service")
                 .attach(SERVICE_NAME)?;
 
-            println!("Successfully lunahced service");
+            println!("Successfully started service");
+        }
+        Commands::StopService => {
+            use service_manager::ServiceStopCtx;
+
+            manager
+                .stop(ServiceStopCtx { label })
+                .context("failed to stop service")
+                .attach(SERVICE_NAME)?;
+
+            println!("Successfully stopped service");
         }
         Commands::Run => {
             unreachable!("Run command should be the default command and handled in main()")
