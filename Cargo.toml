@@ -5,6 +5,8 @@ edition = "2024"
 authors = ["Lander Brandt <stoptrackingme.spool127@passmail.net>"]
 license = "MIT"
 repository = "https://github.com/landaire/stoptrackingme"
+exclude = ["flake.nix", "flake.lock", "mise.toml"]
+readme = "README.md"
 
 [features]
 default = ["service"]

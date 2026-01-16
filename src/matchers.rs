@@ -98,12 +98,16 @@ impl Matcher {
             }
         }
 
-        let mut new_query_pairs = url.query_pairs_mut();
-        new_query_pairs.clear();
-        for (k, v) in &query_pairs {
-            new_query_pairs.append_pair(k, v);
+        if query_pairs.is_empty() {
+            url.set_query(None);
+        } else {
+            let mut new_query_pairs = url.query_pairs_mut();
+            new_query_pairs.clear();
+            for (k, v) in &query_pairs {
+                new_query_pairs.append_pair(k, v);
+            }
+            new_query_pairs.finish();
         }
-        new_query_pairs.finish();
 
         if self.terminates_matching { ReplacementResult::Stop } else { ReplacementResult::Continue }
     }
