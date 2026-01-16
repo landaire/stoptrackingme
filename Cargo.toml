@@ -11,7 +11,7 @@ default = ["service"]
 service = ["dep:service-manager"]
 
 [dependencies]
-arboard = "3.6.1"
+arboard = { version = "3.6.1", default-features = false }
 clap = { version = "4.5.54", features = ["derive"] }
 reqwest = "0.13.1"
 rootcause = "0.11.1"
