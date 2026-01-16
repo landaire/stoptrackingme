@@ -21,7 +21,6 @@ use crate::matchers::ReplacementResult;
 use crate::matchers::included_matchers;
 use crate::matchers::load_matchers;
 
-mod config;
 mod matchers;
 /// Separate module defining the types used for matchers so that we can re-use them in the build.rs
 mod matchers_types;
