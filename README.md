@@ -16,7 +16,7 @@ Usage: stoptrackingme [COMMAND]
 Commands:
   install-service    Installs a service on the machine that will cause the application to be run automatically on login/system start
   uninstall-service  Uninstalls the system service
-  start-service      Startsthe system service
+  start-service      Start sthe system service
   stop-service       Stops the system service
   run                Runs the application (default)
   help               Print this message or the help of the given subcommand(s)

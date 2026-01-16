@@ -44,7 +44,7 @@ enum Commands {
     InstallService,
     /// Uninstalls the system service
     UninstallService,
-    /// Startsthe system service
+    /// Starts the system service
     StartService,
     /// Stops the system service
     StopService,
