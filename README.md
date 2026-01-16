@@ -2,7 +2,7 @@
 
 Removes sharing IDs and other types of link trackers from URLs.
 
-This is a simple CLI application which runs in the background and monitors the user clipboard. When a link is modified to remove query params or tracking identifiers, it's then updated in your clipboard automatically.
+This is a simple CLI application which runs in the background and monitors the user clipboard for URLs containing undesirable tracking IDs or query params. When a link is modified to remove query params or tracking identifiers, it's then updated in your clipboard automatically.
 
 ## Usage
 
