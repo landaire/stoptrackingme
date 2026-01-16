@@ -179,3 +179,87 @@ pub fn load_matchers<P: AsRef<Path>>(path: P) -> Result<Vec<Matcher>, Report> {
 
     Ok(matchers)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn apply_matchers(url_str: &str) -> (String, bool) {
+        let mut url = Url::parse(url_str).unwrap();
+        let matchers = included_matchers::get();
+        let mut requested_redirect = false;
+
+        for matcher in matchers {
+            let host = url.host_str().unwrap_or("");
+            if !matcher.handles_host(host) {
+                continue;
+            }
+
+            match matcher.run_replacements(&mut url) {
+                ReplacementResult::Stop => break,
+                ReplacementResult::Continue { .. } => continue,
+                ReplacementResult::RequestRedirect => {
+                    requested_redirect = true;
+                    break;
+                }
+            }
+        }
+
+        (url.to_string(), requested_redirect)
+    }
+
+    #[test]
+    fn global_strips_utm_params() {
+        let (result, _) = apply_matchers("https://example.com/?utm_source=twitter&utm_medium=social&keep=this");
+        assert_eq!(result, "https://example.com/?keep=this");
+    }
+
+    #[test]
+    fn global_strips_all_utm_variants() {
+        let (result, _) = apply_matchers("https://example.com/?utm_campaign=test&utm_content=abc&utm_term=xyz");
+        assert_eq!(result, "https://example.com/");
+    }
+
+    #[test]
+    fn global_preserves_non_utm_params() {
+        let (result, _) = apply_matchers("https://example.com/?foo=bar&baz=qux");
+        assert_eq!(result, "https://example.com/?foo=bar&baz=qux");
+    }
+
+    #[test]
+    fn reddit_strips_share_id() {
+        let (result, _) = apply_matchers("https://www.reddit.com/r/rust/comments/abc123?share_id=xyz789&other=keep");
+        assert_eq!(result, "https://www.reddit.com/r/rust/comments/abc123?other=keep");
+    }
+
+    #[test]
+    fn reddit_requests_redirect_on_s_path() {
+        let (_, requested_redirect) = apply_matchers("https://www.reddit.com/r/rust/s/abc123");
+        assert!(requested_redirect);
+    }
+
+    #[test]
+    fn reddit_subdomain_matching() {
+        let (result, _) = apply_matchers("https://old.reddit.com/r/rust?share_id=abc");
+        assert_eq!(result, "https://old.reddit.com/r/rust");
+    }
+
+    #[test]
+    fn reddit_and_global_combined() {
+        let (result, _) = apply_matchers("https://www.reddit.com/r/rust?utm_source=share&share_id=abc&keep=this");
+        assert_eq!(result, "https://www.reddit.com/r/rust?keep=this");
+    }
+
+    #[test]
+    fn removes_trailing_question_mark() {
+        let (result, _) = apply_matchers("https://example.com/?utm_source=twitter");
+        assert_eq!(result, "https://example.com/");
+    }
+
+    #[test]
+    fn non_matching_host_unchanged() {
+        let (result, _) = apply_matchers("https://notreddit.com/?share_id=abc");
+        // share_id should remain since notreddit.com doesn't match *.reddit.com
+        assert_eq!(result, "https://notreddit.com/?share_id=abc");
+    }
+}
