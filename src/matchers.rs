@@ -294,4 +294,10 @@ mod tests {
         let (result, _) = apply_matchers("https://accounts.spotify.com/login?si=abc");
         assert_eq!(result, "https://accounts.spotify.com/login?si=abc");
     }
+
+    #[test]
+    fn test_instagram() {
+        let (result, _) = apply_matchers("https://www.instagram.com/p/FOO/?utm_source=ig_web_copy_link&igsh=BAR");
+        assert_eq!(result, "https://www.instagram.com/p/FOO/");
+    }
 }

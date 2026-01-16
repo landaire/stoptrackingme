@@ -1,0 +1,4 @@
+hosts = ["www.instagram.com"]
+
+[[param_matchers]]
+name = "igsh"
