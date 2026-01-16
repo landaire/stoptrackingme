@@ -21,9 +21,11 @@ impl Matcher {
             let mut needle = supported_host.as_str();
             if needle.starts_with("*.") {
                 // This matches any subdomain
-                needle = &needle[2..];
+                needle = &needle[1..];
 
-                if host.ends_with(needle) {
+                // Check if this is a match against a wildcard subdomain
+                // or a literal match with the TLD
+                if host.ends_with(needle) || host == &needle[1..] {
                     return true;
                 }
             } else if host == needle {
