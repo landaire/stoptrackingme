@@ -22,18 +22,21 @@ pub struct Matcher {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Param {
     pub name: String,
+    #[serde(default)]
     pub operation: ReplacementOperation,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PathComponent {
     pub name: String,
+    #[serde(default)]
     pub operation: ReplacementOperation,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum ReplacementOperation {
+    #[default]
     Drop,
     ReplaceWith(String),
     RequestRedirect,
