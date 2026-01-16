@@ -23,6 +23,8 @@ use crate::matchers::load_matchers;
 
 mod config;
 mod matchers;
+/// Separate module defining the types used for matchers so that we can re-use them in the build.rs
+mod matchers_types;
 
 const CLIPBOARD_POLLING_RATE: Duration = Duration::from_millis(500);
 

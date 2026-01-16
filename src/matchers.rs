@@ -3,31 +3,13 @@ use std::path::Path;
 
 use rootcause::Report;
 use rootcause::prelude::ResultExt;
-use serde::Deserialize;
-use serde::Serialize;
 use tracing::debug_span;
 use tracing::error;
 use tracing::warn;
 use url::Url;
 use walkdir::WalkDir;
 
-const fn default_bool<const VALUE: bool>() -> bool {
-    VALUE
-}
-
-/// Specifies a replacement rule
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Matcher {
-    #[serde(default)]
-    pub name: String,
-    pub hosts: Vec<String>,
-    #[serde(default = "default_bool::<true>")]
-    pub terminates_matching: bool,
-    #[serde(default)]
-    pub param_matchers: Vec<Param>,
-    #[serde(default)]
-    pub path_matchers: Vec<PathComponent>,
-}
+pub use crate::matchers_types::*;
 
 impl Matcher {
     pub fn handles_host(&self, host: &str) -> bool {
@@ -120,25 +102,6 @@ impl Matcher {
 
         if self.terminates_matching { ReplacementResult::Stop } else { ReplacementResult::Continue }
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Param {
-    pub name: String,
-    pub operation: ReplacementOperation,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PathComponent {
-    pub name: String,
-    pub operation: ReplacementOperation,
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum ReplacementOperation {
-    Drop,
-    ReplaceWith(String),
-    RequestRedirect,
 }
 
 pub enum ReplacementResult {

@@ -1,44 +1,11 @@
-use serde::Deserialize;
 use std::env;
 use std::fs;
 use std::path::Path;
 use walkdir::WalkDir;
 
-#[derive(Debug, Deserialize)]
-struct Matcher {
-    #[serde(default)]
-    name: String,
-    hosts: Vec<String>,
-    #[serde(default = "default_true")]
-    terminates_matching: bool,
-    #[serde(default)]
-    param_matchers: Vec<Param>,
-    #[serde(default)]
-    path_matchers: Vec<PathComponent>,
-}
-
-fn default_true() -> bool {
-    true
-}
-
-#[derive(Debug, Deserialize)]
-struct Param {
-    name: String,
-    operation: ReplacementOperation,
-}
-
-#[derive(Debug, Deserialize)]
-struct PathComponent {
-    name: String,
-    operation: ReplacementOperation,
-}
-
-#[derive(Debug, Deserialize)]
-enum ReplacementOperation {
-    Drop,
-    ReplaceWith(String),
-    RequestRedirect,
-}
+#[path = "src/matchers_types.rs"]
+mod matchers_types;
+use matchers_types::*;
 
 fn main() {
     println!("cargo:rerun-if-changed=matchers");
