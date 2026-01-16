@@ -2,6 +2,13 @@
 name = "stoptrackingme"
 version = "0.1.0"
 edition = "2024"
+authors = ["Lander Brandt <stoptrackingme.spool127@passmail.net>"]
+license = "MIT"
+repository = "https://github.com/landaire/stoptrackingme"
+
+[features]
+default = ["service"]
+service = ["dep:service-manager"]
 
 [dependencies]
 arboard = "3.6.1"
@@ -9,6 +16,7 @@ clap = { version = "4.5.54", features = ["derive"] }
 reqwest = "0.13.1"
 rootcause = "0.11.1"
 serde = { version = "1.0.228", features = ["derive"] }
+service-manager = { version = "0.10.0", optional = true }
 tokio = { version = "1.49.0", features = ["rt", "macros"] }
 toml = "0.9.11"
 tracing = "0.1.44"

@@ -1,5 +1,5 @@
 use arboard::Clipboard;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use reqwest::{Client, header::LOCATION};
 use rootcause::{Report, prelude::ResultExt};
 use std::{borrow::Cow, time::Duration};
@@ -12,18 +12,53 @@ use crate::matchers::{Matcher, ReplacementResult, included_matchers, load_matche
 mod config;
 mod matchers;
 
+const CLIPBOARD_POLLING_RATE: Duration = Duration::from_millis(500);
+
 /// Monitor the system clipboard for URLs and remove tracking IDs
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Number of times to greet
-    #[arg(short, long, default_value_t = 1)]
-    count: u8,
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[cfg(feature = "service")]
+#[derive(Debug, Default, Eq, PartialEq, Subcommand)]
+enum Commands {
+    /// Installs a service on the machine that will cause the application to be
+    /// run automatically on login/system start
+    InstallService,
+    /// Uninstalls the system service
+    UninstallService,
+    /// Starts the system service
+    StartService,
+    /// Runs the application (default)
+    #[default]
+    Run,
+}
+
+#[cfg(not(feature = "service"))]
+#[derive(Debug, Default, Eq, PartialEq, Subcommand)]
+enum Commands {
+    /// Runs the application (default)
+    #[default]
+    Run,
 }
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Report> {
-    let subscriber = fmt().pretty().with_max_level(Level::TRACE).finish();
+    let args = Args::parse();
+    let command = args.command.unwrap_or_default();
+    if command != Commands::Run {
+        return handle_command(command);
+    }
+
+    let subscriber = if cfg!(debug_assertions) {
+        fmt().pretty().with_max_level(Level::TRACE).finish()
+    } else {
+        fmt().pretty().with_max_level(Level::DEBUG).finish()
+    };
+
     tracing::subscriber::set_global_default(subscriber)
         .expect("setting default tracing subscriber failed");
 
@@ -36,7 +71,9 @@ async fn main() -> Result<(), Report> {
 
     let mut http_client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        // Chrome for macOS reduced user-agent: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/User-Agent
+        // This is required because some site, like Reddit, will return a 403 if you use a user-agent it doesn't like
+        .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36")
         .build()
         .context("failed to build HTTP client")?;
 
@@ -72,7 +109,7 @@ async fn main() -> Result<(), Report> {
             last_content = current;
         }
 
-        std::thread::sleep(Duration::from_millis(500));
+        std::thread::sleep(CLIPBOARD_POLLING_RATE);
     }
 }
 
@@ -174,4 +211,73 @@ async fn clean_clipboard_text(
     }
 
     final_result
+}
+
+#[cfg(feature = "service")]
+fn handle_command(command: Commands) -> Result<(), Report> {
+    use service_manager::{
+        RestartPolicy, ServiceInstallCtx, ServiceLabel, ServiceManager, ServiceStartCtx,
+        ServiceUninstallCtx,
+    };
+
+    const SERVICE_NAME: &str = "net.landaire.stoptrackingme";
+    let label: ServiceLabel = SERVICE_NAME.parse().expect("invalid ServiceLabel");
+    let manager = <dyn ServiceManager>::native().expect("Failed to detect management platform");
+
+    match command {
+        Commands::InstallService => {
+            manager
+                .install(ServiceInstallCtx {
+                    label,
+                    program: std::env::current_exe().expect("failed to get current program path"),
+                    args: vec!["run".into()],
+                    contents: None,
+                    username: None,
+                    working_directory: None,
+                    environment: None,
+                    autostart: true,
+                    restart_policy: RestartPolicy::OnFailure {
+                        delay_secs: Some(10),
+                    },
+                })
+                .context("failed to install service")?;
+
+            println!(
+                "Successfully installed service with label {SERVICE_NAME:?}. You can now start it with:"
+            );
+            println!("stoptrackingme launch-service")
+        }
+        Commands::UninstallService => {
+            manager
+                .uninstall(ServiceUninstallCtx { label })
+                .context("failed to uninstall service")?;
+
+            println!("Successfully uninstalled service");
+        }
+        Commands::StartService => {
+            manager
+                .start(ServiceStartCtx { label })
+                .context("failed to start service")
+                .attach(SERVICE_NAME)?;
+
+            println!("Successfully lunahced service");
+        }
+        Commands::Run => {
+            unreachable!("Run command should be the default command and handled in main()")
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(not(feature = "service"))]
+#[allow(unreachable_code)]
+fn handle_command(command: Commands) -> Result<(), Report> {
+    match command {
+        Commands::Run => {
+            unreachable!("Run command should be the default command and handled in main()")
+        }
+    }
+
+    Ok(())
 }
