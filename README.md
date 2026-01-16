@@ -4,6 +4,17 @@ Removes sharing IDs and other types of link trackers from URLs.
 
 This is a simple CLI application which runs in the background and monitors the user clipboard for URLs containing undesirable tracking IDs or query params. When a link is modified to remove query params or tracking identifiers, it's then updated in your clipboard automatically.
 
+## Features
+
+- [x] Drop params with simple share IDs or source IDs (`?share_id=<ID>&utm_whatever=iphone`)
+- [x] Full replacement URLs that require following an HTTP redirect (e.g. `https://www.reddit.com/r/SUBREDDIT/s/SHAREDID`)
+- [x] Global modifiers for annoying URL query params (`?utm_*`)
+- [x] System service management
+
+May be nice to have:
+
+- Anonymous HTTP requests (Tor, proxy) to obtain the URL without the share ID for those that cannot be resolved in a simple manner. You could still be tied to a share ID based on IP address, even when not logged in to an account.
+
 ## Usage
 
 ```
@@ -48,16 +59,25 @@ cargo install --locked . # or cargo {run,build} --release
 cargo install --locked stoptrackingme
 ```
 
-## Features
+## User Config
 
-- [x] Drop params with simple share IDs or source IDs (`?share_id=<ID>&utm_whatever=iphone`)
-- [x] Full replacement URLs that require following an HTTP redirect (e.g. `https://www.reddit.com/r/SUBREDDIT/s/SHAREDID`)
-- [x] Global modifiers for annoying URL query params (`?utm_*`)
-- [x] System service management
+You can add custom rules by creating a `$CONFIG_DIR/stoptrackingme/matchers/sitename.toml` file. At this time this **appends** matchers.
 
-May be nice to have:
+For example:
 
-- Anonymous HTTP requests (Tor, proxy) to obtain the URL without the share ID for those that cannot be resolved in a simple manner. You could still be tied to a share ID based on IP address, even when not logged in to an account.
+```toml
+# $HOME/Library/Application Support/stoptrackingme/matchers/global.toml
+hosts = []
+
+[[param_matchers]]
+name = "sid"
+```
+
+You can obtain the expected config path by running:
+
+```
+$ stoptrackingem config-path
+```
 
 ## Supported Sites
 
