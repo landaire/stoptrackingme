@@ -1,7 +1,7 @@
 use arboard::Clipboard;
 use clap::Parser;
 use clap::Subcommand;
-use reqwest::Client;
+use reqwest::blocking::Client;
 use reqwest::header::LOCATION;
 use rootcause::Report;
 use rootcause::prelude::ResultExt;
@@ -61,8 +61,7 @@ enum Commands {
     Run,
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), Report> {
+fn main() -> Result<(), Report> {
     let args = Args::parse();
     let command = args.command.unwrap_or_default();
     if command != Commands::Run {
@@ -84,7 +83,7 @@ async fn main() -> Result<(), Report> {
         included_matchers::get()
     };
 
-    let mut http_client = reqwest::Client::builder()
+    let mut http_client = Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         // Chrome for macOS reduced user-agent: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/User-Agent
         // This is required because some site, like Reddit, will return a 403 if you use a user-agent it doesn't like
@@ -100,7 +99,7 @@ async fn main() -> Result<(), Report> {
         if current != last_content {
             trace!("New clipboard text detected. Current: {current:?}, last: {last_content:?}");
             if let Some(ref mut new_clipboard_text) = current {
-                match clean_clipboard_text(new_clipboard_text, &mut http_client, matchers).await {
+                match clean_clipboard_text(new_clipboard_text, &mut http_client, matchers) {
                     Ok(None) => {
                         // Not a URL, so don't update anything
                         debug!("Clipboard text not cleaned");
@@ -129,11 +128,7 @@ async fn main() -> Result<(), Report> {
 }
 
 /// Attempts to parse a URL and clean it
-async fn clean_clipboard_text(
-    text: &str,
-    http_client: &mut Client,
-    matchers: &[Matcher],
-) -> Result<Option<String>, Report> {
+fn clean_clipboard_text(text: &str, http_client: &mut Client, matchers: &[Matcher]) -> Result<Option<String>, Report> {
     let span = debug_span!("clean_clipboard_text");
     let _enter = span.enter();
 
@@ -186,7 +181,7 @@ async fn clean_clipboard_text(
                     }
 
                     let response =
-                        http_client.head(parsed_url.clone()).send().await.context("failed to get redirect target")?;
+                        http_client.head(parsed_url.clone()).send().context("failed to get redirect target")?;
 
                     debug!("got response: {:?}", response);
 
