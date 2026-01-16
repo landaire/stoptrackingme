@@ -1,0 +1,4 @@
+hosts = ["youtu.be", "*.youtube.com"]
+
+[[param_matchers]]
+name = "si"
