@@ -1,11 +1,9 @@
 use arboard::Clipboard;
 use clap::Parser;
 use clap::Subcommand;
-use reqwest::blocking::Client;
-use reqwest::header::LOCATION;
+use clearurls::UrlCleaner;
 use rootcause::Report;
 use rootcause::prelude::ResultExt;
-use std::borrow::Cow;
 use std::path::PathBuf;
 use std::time::Duration;
 use tracing::Level;
@@ -13,18 +11,8 @@ use tracing::debug;
 use tracing::debug_span;
 use tracing::error;
 use tracing::trace;
-use tracing::warn;
 use tracing_subscriber::fmt;
 use url::Url;
-
-use crate::matchers::Matcher;
-use crate::matchers::ReplacementResult;
-use crate::matchers::included_matchers;
-use crate::matchers::load_matchers;
-
-mod matchers;
-/// Separate module defining the types used for matchers so that we can re-use them in the build.rs
-mod matchers_types;
 
 const CLIPBOARD_POLLING_RATE: Duration = Duration::from_millis(500);
 
@@ -100,46 +88,15 @@ fn main() -> Result<(), Report> {
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default tracing subscriber failed");
 
-    let user_matchers = config_path().and_then(|config_dir| {
-        let user_dir = config_dir.join("matchers");
-        if user_dir.exists() { Some(load_matchers(user_dir)) } else { None }
-    });
-
-    // TODO: I don't like making a heap allocation for static data, but it
-    // makes this code easier to wrangle right now. re-evaluate if the rules grow to be too large
-    let mut matchers = if cfg!(debug_assertions) {
-        // Load from the current directory
-        load_matchers("matchers")?
+    let cleaner = if let Some(data_path) = config_path().map(|path| path.join("data.json"))
+        && data_path.exists()
+    {
+        UrlCleaner::from_rules_path(&data_path)
+            .context("failed to load user-defined UrlCleaner data")
+            .attach_with(move || format!("{data_path:?}"))?
     } else {
-        included_matchers::get().to_vec()
+        UrlCleaner::from_embedded_rules().context("failed to load UrlCleaner")?
     };
-
-    match user_matchers {
-        Some(Ok(user_matchers)) => {
-            for mut matcher in user_matchers {
-                // Merge the matchers if one already exists
-                if let Some(existing) = matchers.iter_mut().find(|default_matcher| default_matcher.name == matcher.name)
-                {
-                    existing.merge(&mut matcher);
-                } else {
-                    // None found, insert a new one
-                    matchers.push(matcher)
-                }
-            }
-        }
-        Some(Err(e)) => {
-            warn!("Failed to load user matchers: {e:?}");
-        }
-        None => {}
-    };
-
-    let mut http_client = Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        // Chrome for macOS reduced user-agent: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/User-Agent
-        // This is required because some site, like Reddit, will return a 403 if you use a user-agent it doesn't like
-        .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36")
-        .build()
-        .context("failed to build HTTP client")?;
 
     let mut clipboard = Clipboard::new().unwrap();
     let mut last_content = clipboard.get_text().ok().map(ClipboardText);
@@ -149,7 +106,7 @@ fn main() -> Result<(), Report> {
         if current != last_content {
             trace!("New clipboard text detected. Current: {current:?}, last: {last_content:?}");
             if let Some(ref mut new_clipboard_text) = current {
-                match clean_clipboard_text(new_clipboard_text, &mut http_client, &matchers) {
+                match clean_clipboard_text(new_clipboard_text, &cleaner) {
                     Ok(None) => {
                         // Not a URL, so don't update anything
                         debug!("Clipboard text not cleaned");
@@ -178,101 +135,20 @@ fn main() -> Result<(), Report> {
 }
 
 /// Attempts to parse a URL and clean it
-fn clean_clipboard_text(
-    text: &ClipboardText,
-    http_client: &mut Client,
-    matchers: &[Matcher],
-) -> Result<Option<ClipboardText>, Report> {
+fn clean_clipboard_text(text: &ClipboardText, cleaner: &UrlCleaner) -> Result<Option<ClipboardText>, Report> {
     let span = debug_span!("clean_clipboard_text");
     let _enter = span.enter();
 
-    if cfg!(debug_assertions) {
-        debug!("cleaning text: {text}")
-    } else {
-        debug!("cleaning text")
-    }
+    debug!("cleaning text: {text}");
 
-    let mut text = Cow::Borrowed(&text.0);
-    let mut final_result = Ok(None);
-    let mut redirect_depth = 0;
-    'url_loop: loop {
-        let Ok(mut parsed_url) = Url::parse(text.as_ref()) else {
-            // Not a URL
-            return Ok(None);
-        };
+    let Ok(parsed_url) = Url::parse(text.0.as_ref()) else {
+        // Not a URL
+        return Ok(None);
+    };
 
-        let Some(host) = parsed_url.host_str().map(|host| host.to_owned()) else {
-            // No valid host -- nothing to replace
-            return Ok(None);
-        };
+    let cleaned = cleaner.clear_single_url(&parsed_url).context("failed to clean URL")?;
 
-        // Check to see if we can resolve a matcher
-        for matcher in matchers {
-            if !matcher.handles_host(&host) {
-                continue;
-            }
-
-            debug!("{} matcher supports domain", &matcher.name);
-
-            match matcher.run_replacements(&mut parsed_url) {
-                ReplacementResult::Continue { modified } => {
-                    debug!("Matcher requested a continue");
-
-                    if modified {
-                        final_result = Ok(Some(parsed_url.to_string()));
-                    }
-                    continue;
-                }
-                ReplacementResult::Stop => {
-                    debug!("Matcher requested a stop");
-
-                    final_result = Ok(Some(parsed_url.to_string()));
-                    break;
-                }
-                ReplacementResult::RequestRedirect => {
-                    debug!("Matcher requested a redirect");
-
-                    if redirect_depth > 0 {
-                        warn!("A prior matcher already requested a redirect. Nested redirects are to be ignored.");
-                        // We aren't going to request any deeper
-                        break;
-                    }
-
-                    let response =
-                        http_client.head(parsed_url.clone()).send().context("failed to get redirect target")?;
-
-                    if response.status().is_redirection() {
-                        if let Some(location_header) = response.headers().get(LOCATION) {
-                            text = Cow::Owned(
-                                location_header
-                                    .to_str()
-                                    .context("failed to convert Location header to text")?
-                                    .to_owned(),
-                            );
-                            final_result = Ok(Some(parsed_url.to_string()));
-
-                            trace!("Got redirection location: {text}");
-
-                            redirect_depth += 1;
-                            // We need to run matchers again on this inner URL
-                            continue 'url_loop;
-                        } else {
-                            warn!("Did not get a Location header in redirect response");
-                            // We didn't have a location header?
-                        }
-                    } else {
-                        warn!("Did not get a a redirect response");
-                    }
-                }
-            }
-        }
-
-        // Avoiding infinite loops: all actions above
-        // must take an explicit `continue` or `break`
-        break;
-    }
-
-    final_result.map(|opt| opt.map(ClipboardText))
+    if cleaned.as_ref() != &parsed_url { Ok(Some(ClipboardText(cleaned.to_string()))) } else { Ok(None) }
 }
 
 #[cfg(feature = "service")]

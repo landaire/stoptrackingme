@@ -1,4 +1,0 @@
-hosts = ["open.spotify.com"]
-
-[[param_matchers]]
-name = "si"

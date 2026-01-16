@@ -1,8 +1,0 @@
-hosts = ["*.reddit.com"]
-
-[[param_matchers]]
-name = "share_id"
-
-[[path_matchers]]
-name = "s"
-operation = "request-redirect"
