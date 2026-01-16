@@ -1,0 +1,4 @@
+hosts = ["www.threads.com"]
+
+[[param_matchers]]
+name = "xmt"
