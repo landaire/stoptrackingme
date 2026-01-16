@@ -264,4 +264,34 @@ mod tests {
         // share_id should remain since notreddit.com doesn't match *.reddit.com
         assert_eq!(result, "https://notreddit.com/?share_id=abc");
     }
+
+    #[test]
+    fn youtube_strips_si_param() {
+        let (result, _) = apply_matchers("https://www.youtube.com/watch?v=dQw4w9WgXcQ&si=abc123");
+        assert_eq!(result, "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    }
+
+    #[test]
+    fn youtube_shortlink_strips_si_param() {
+        let (result, _) = apply_matchers("https://youtu.be/dQw4w9WgXcQ?si=abc123");
+        assert_eq!(result, "https://youtu.be/dQw4w9WgXcQ");
+    }
+
+    #[test]
+    fn youtube_music_subdomain() {
+        let (result, _) = apply_matchers("https://music.youtube.com/watch?v=abc&si=tracking");
+        assert_eq!(result, "https://music.youtube.com/watch?v=abc");
+    }
+
+    #[test]
+    fn spotify_strips_si_param() {
+        let (result, _) = apply_matchers("https://open.spotify.com/track/abc123?si=xyz789");
+        assert_eq!(result, "https://open.spotify.com/track/abc123");
+    }
+
+    #[test]
+    fn spotify_non_matching_subdomain() {
+        let (result, _) = apply_matchers("https://accounts.spotify.com/login?si=abc");
+        assert_eq!(result, "https://accounts.spotify.com/login?si=abc");
+    }
 }
